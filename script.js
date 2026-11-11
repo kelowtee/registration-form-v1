@@ -13,11 +13,38 @@ const strengthBar = document.getElementById('strengthBar');
 const strengthLabel = document.getElementById('strengthLabel');
 const passwordRulesList = document.getElementById('passwordRules');
 
+// Телефон: строго "+7" и ровно 10 цифр после кода страны.
+const PHONE_PREFIX = '+7';
+const PHONE_DIGITS = 10;
+const PHONE_PATTERN = /^\+7\d{10}$/;
+
 function validatePhone(value) {
-  const digitsOnly = value.replace(/\D/g, '');
-  const isValidLength = digitsOnly.length >= 9;
-  const startsCorrectly = digitsOnly.startsWith('7') || digitsOnly.startsWith('8');
-  return isValidLength && startsCorrectly;
+  return PHONE_PATTERN.test(value);
+}
+
+// Приводит ввод к виду "+7XXXXXXXXXX": убирает всё, кроме цифр,
+// отбрасывает код страны (+7, 7 или 8 в начале) и обрезает лишние цифры.
+function normalizePhone(raw) {
+  if (raw === '') return '';
+  let digits = raw.replace(/\D/g, '');
+  // Первая цифра 7 или 8 — это код страны ("+7…", "7…", "8…"), её отбрасываем
+  if (digits[0] === '7' || digits[0] === '8') digits = digits.slice(1);
+  return PHONE_PREFIX + digits.slice(0, PHONE_DIGITS);
+}
+
+function formatPhoneInput() {
+  const raw = phoneInput.value;
+  const caret = phoneInput.selectionStart ?? raw.length;
+  // Сколько цифр абонента было слева от курсора — чтобы курсор не прыгал в конец
+  const normalizedLeft = normalizePhone(raw.slice(0, caret));
+  const digitsLeft = Math.max(0, normalizedLeft.length - PHONE_PREFIX.length);
+
+  const formatted = normalizePhone(raw);
+  if (formatted !== raw) {
+    phoneInput.value = formatted;
+    const pos = formatted ? Math.min(PHONE_PREFIX.length + digitsLeft, formatted.length) : 0;
+    phoneInput.setSelectionRange(pos, pos);
+  }
 }
 
 // Критерии надёжного пароля. Пароль считается безопасным только
@@ -95,16 +122,32 @@ function clearSuccess() {
   successMessage.textContent = '';
 }
 
+const PHONE_ERROR = 'Введите номер в формате +7XXXXXXXXXX: +7 и 10 цифр';
+
+function showPhoneError() {
+  const v = phoneInput.value;
+  setFieldError(phoneInput, phoneError, v && v !== PHONE_PREFIX && !validatePhone(v) ? PHONE_ERROR : '');
+}
+
+// При фокусе сразу подставляем "+7", чтобы оставалось ввести только 10 цифр
+phoneInput.addEventListener('focus', () => {
+  if (phoneInput.value === '') {
+    phoneInput.value = PHONE_PREFIX;
+    phoneInput.setSelectionRange(PHONE_PREFIX.length, PHONE_PREFIX.length);
+  }
+});
+
 phoneInput.addEventListener('input', () => {
   clearSuccess();
-  if (phoneInput.value.length === 0) {
-    setFieldError(phoneInput, phoneError, '');
-  } else if (!validatePhone(phoneInput.value)) {
-    setFieldError(phoneInput, phoneError, 'Введите номер в формате +7XXXXXXXXXX (11 цифр)');
-  } else {
-    setFieldError(phoneInput, phoneError, '');
-  }
+  formatPhoneInput();
+  // Пока номер набирается, не ругаемся; ошибку убираем, как только номер стал верным
+  if (validatePhone(phoneInput.value)) setFieldError(phoneInput, phoneError, '');
   updateSubmitButtonState();
+});
+
+phoneInput.addEventListener('blur', () => {
+  if (phoneInput.value === PHONE_PREFIX) phoneInput.value = '';
+  showPhoneError();
 });
 
 passwordInput.addEventListener('input', () => {
@@ -142,6 +185,22 @@ confirmInput.addEventListener('input', () => {
   updateSubmitButtonState();
 });
 
+// Кнопка-глаз: показать / скрыть пароль
+function setPasswordVisible(button, visible) {
+  const input = document.getElementById(button.dataset.target);
+  input.type = visible ? 'text' : 'password';
+  button.setAttribute('aria-pressed', String(visible));
+  const label = visible ? 'Скрыть пароль' : 'Показать пароль';
+  button.setAttribute('aria-label', label);
+  button.title = label;
+}
+
+document.querySelectorAll('.toggle-password').forEach((button) => {
+  button.addEventListener('click', () => {
+    setPasswordVisible(button, button.getAttribute('aria-pressed') !== 'true');
+  });
+});
+
 form.addEventListener('submit', (e) => {
   e.preventDefault();
   if (!isFormValid()) return;
@@ -151,6 +210,7 @@ form.addEventListener('submit', (e) => {
     input.classList.remove('invalid');
     input.removeAttribute('aria-invalid');
   });
+  document.querySelectorAll('.toggle-password').forEach((b) => setPasswordVisible(b, false));
   updateStrengthUI('');
   updateSubmitButtonState();
   successMessage.textContent = 'Регистрация прошла успешно!';
