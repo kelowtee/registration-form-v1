@@ -11,6 +11,7 @@ const successMessage = document.getElementById('successMessage');
 
 const strengthBar = document.getElementById('strengthBar');
 const strengthLabel = document.getElementById('strengthLabel');
+const passwordRulesList = document.getElementById('passwordRules');
 
 function validatePhone(value) {
   const digitsOnly = value.replace(/\D/g, '');
@@ -19,29 +20,37 @@ function validatePhone(value) {
   return isValidLength && startsCorrectly;
 }
 
-// Критерии надёжного пароля: пароль безопасен только при выполнении ВСЕХ.
+// Критерии надёжного пароля. Пароль считается безопасным только
+// при выполнении ВСЕХ критериев.
 const PASSWORD_RULES = [
-  (v) => v.length >= 8,                  // не менее 8 символов
-  (v) => /\p{Ll}/u.test(v),              // строчная буква
-  (v) => /\p{Lu}/u.test(v),              // заглавная буква
-  (v) => /\d/.test(v),                   // цифра
-  (v) => /[^\p{L}\p{N}\s]/u.test(v),     // спецсимвол (кириллица больше не считается спецсимволом)
-  (v) => !/\s/.test(v),                  // без пробелов
+  { id: 'length', test: (v) => v.length >= 8 },
+  { id: 'lower', test: (v) => /\p{Ll}/u.test(v) },
+  { id: 'upper', test: (v) => /\p{Lu}/u.test(v) },
+  { id: 'digit', test: (v) => /\d/.test(v) },
+  // Спецсимвол — любой символ, который не буква, не цифра и не пробел.
+  // (Раньше кириллица ошибочно засчитывалась как спецсимвол.)
+  { id: 'special', test: (v) => /[^\p{L}\p{N}\s]/u.test(v) },
+  { id: 'noSpaces', test: (v) => v.length > 0 && !/\s/.test(v) },
 ];
+
+function getPasswordChecks(value) {
+  return PASSWORD_RULES.map((rule) => ({ id: rule.id, passed: rule.test(value) }));
+}
 
 function getPasswordStrength(value) {
   if (value.length === 0) return 0;
 
-  const passed = PASSWORD_RULES.filter((rule) => rule(value)).length;
+  const checks = getPasswordChecks(value);
+  const passedCount = checks.filter((c) => c.passed).length;
 
-  if (passed === PASSWORD_RULES.length) return 3; // Сильный — только при всех критериях
-  if (value.length < 8) return 1;                  // короткий пароль всегда «Слабый»
-  if (passed >= PASSWORD_RULES.length - 2) return 2;
-  return 1;
+  if (passedCount === PASSWORD_RULES.length) return 3; // Сильный
+  if (value.length < 8) return 1; // короткий пароль не может быть даже «средним»
+  if (passedCount >= PASSWORD_RULES.length - 2) return 2; // Средний
+  return 1; // Слабый
 }
 
 function isPasswordValid(value) {
-  return PASSWORD_RULES.every((rule) => rule(value));
+  return getPasswordChecks(value).every((c) => c.passed);
 }
 
 function doPasswordsMatch(password, confirm) {
@@ -57,6 +66,18 @@ function updateStrengthUI(value) {
   strengthBar.style.width = widths[strength];
   strengthBar.style.background = colors[strength];
   strengthLabel.textContent = labels[strength];
+  strengthLabel.style.color = strength === 0 ? '' : colors[strength];
+
+  getPasswordChecks(value).forEach(({ id, passed }) => {
+    const item = passwordRulesList.querySelector(`[data-rule="${id}"]`);
+    if (item) item.classList.toggle('passed', passed);
+  });
+}
+
+function setFieldError(input, errorEl, message) {
+  errorEl.textContent = message;
+  input.classList.toggle('invalid', Boolean(message));
+  input.setAttribute('aria-invalid', message ? 'true' : 'false');
 }
 
 function isFormValid() {
@@ -68,57 +89,72 @@ function isFormValid() {
 
 function updateSubmitButtonState() {
   submitBtn.disabled = !isFormValid();
-  submitBtn.style.opacity = submitBtn.disabled ? '0.5' : '1';
-  submitBtn.style.cursor = submitBtn.disabled ? 'not-allowed' : 'pointer';
+}
+
+function clearSuccess() {
+  successMessage.textContent = '';
 }
 
 phoneInput.addEventListener('input', () => {
+  clearSuccess();
   if (phoneInput.value.length === 0) {
-    phoneError.textContent = '';
+    setFieldError(phoneInput, phoneError, '');
   } else if (!validatePhone(phoneInput.value)) {
-    phoneError.textContent = 'Введите номер в формате +7XXXXXXXXXX (11 цифр)';
+    setFieldError(phoneInput, phoneError, 'Введите номер в формате +7XXXXXXXXXX (11 цифр)');
   } else {
-    phoneError.textContent = '';
+    setFieldError(phoneInput, phoneError, '');
   }
   updateSubmitButtonState();
 });
 
 passwordInput.addEventListener('input', () => {
+  clearSuccess();
   updateStrengthUI(passwordInput.value);
 
   if (passwordInput.value.length === 0) {
-    passwordError.textContent = '';
+    setFieldError(passwordInput, passwordError, '');
   } else if (!isPasswordValid(passwordInput.value)) {
-    passwordError.textContent = 'Пароль слишком слабый: минимум 8 символов, строчная и заглавная буквы, цифра и спецсимвол, без пробелов';
+    setFieldError(passwordInput, passwordError, 'Пароль недостаточно надёжный: выполните все требования ниже');
   } else {
-    passwordError.textContent = '';
+    setFieldError(passwordInput, passwordError, '');
   }
 
   if (confirmInput.value.length > 0) {
-    confirmError.textContent = doPasswordsMatch(passwordInput.value, confirmInput.value)
-      ? ''
-      : 'Пароли не совпадают';
+    setFieldError(
+      confirmInput,
+      confirmError,
+      doPasswordsMatch(passwordInput.value, confirmInput.value) ? '' : 'Пароли не совпадают'
+    );
   }
 
   updateSubmitButtonState();
 });
 
 confirmInput.addEventListener('input', () => {
+  clearSuccess();
   if (confirmInput.value.length === 0) {
-    confirmError.textContent = '';
+    setFieldError(confirmInput, confirmError, '');
   } else if (!doPasswordsMatch(passwordInput.value, confirmInput.value)) {
-    confirmError.textContent = 'Пароли не совпадают';
+    setFieldError(confirmInput, confirmError, 'Пароли не совпадают');
   } else {
-    confirmError.textContent = '';
+    setFieldError(confirmInput, confirmError, '');
   }
   updateSubmitButtonState();
 });
 
 form.addEventListener('submit', (e) => {
   e.preventDefault();
-  if (isFormValid()) {
-    successMessage.textContent = 'Регистрация прошла успешно!';
-  }
+  if (!isFormValid()) return;
+
+  form.reset();
+  [phoneInput, passwordInput, confirmInput].forEach((input) => {
+    input.classList.remove('invalid');
+    input.removeAttribute('aria-invalid');
+  });
+  updateStrengthUI('');
+  updateSubmitButtonState();
+  successMessage.textContent = 'Регистрация прошла успешно!';
 });
 
+updateStrengthUI('');
 updateSubmitButtonState();
