@@ -12,28 +12,40 @@
     <form id="signupForm" novalidate>
       <div class="field">
         <label for="phone">Телефон</label>
-        <input type="text" id="phone" name="phone" placeholder="+79991234567">
-        <span class="error" id="phoneError"></span>
+        <input type="tel" id="phone" name="phone" placeholder="+79991234567"
+               inputmode="tel" autocomplete="tel"
+               aria-describedby="phoneError">
+        <span class="error" id="phoneError" aria-live="polite"></span>
       </div>
 
       <div class="field">
         <label for="password">Пароль</label>
-        <input type="password" id="password" name="password" placeholder="Минимум 8 символов">
-        <div class="strength-meter">
+        <input type="password" id="password" name="password" placeholder="Придумайте надёжный пароль"
+               autocomplete="new-password" aria-describedby="passwordRules passwordError">
+        <div class="strength-meter" aria-hidden="true">
           <div class="strength-bar" id="strengthBar"></div>
         </div>
-        <span class="strength-label" id="strengthLabel"></span>
-        <span class="error" id="passwordError"></span>
+        <span class="strength-label" id="strengthLabel" aria-live="polite"></span>
+        <ul class="password-rules" id="passwordRules">
+          <li data-rule="length">Не менее 8 символов</li>
+          <li data-rule="lower">Строчная буква</li>
+          <li data-rule="upper">Заглавная буква</li>
+          <li data-rule="digit">Цифра</li>
+          <li data-rule="special">Спецсимвол (!@#…)</li>
+          <li data-rule="noSpaces">Без пробелов</li>
+        </ul>
+        <span class="error" id="passwordError" aria-live="polite"></span>
       </div>
 
       <div class="field">
         <label for="confirmPassword">Повторите пароль</label>
-        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Повторите пароль">
-        <span class="error" id="confirmError"></span>
+        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="Повторите пароль"
+               autocomplete="new-password" aria-describedby="confirmError">
+        <span class="error" id="confirmError" aria-live="polite"></span>
       </div>
 
       <button type="submit" id="submitBtn">Зарегистрироваться</button>
-      <div class="success" id="successMessage"></div>
+      <div class="success" id="successMessage" role="status" aria-live="polite"></div>
     </form>
   </div>
 
