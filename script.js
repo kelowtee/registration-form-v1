@@ -19,22 +19,29 @@ function validatePhone(value) {
   return isValidLength && startsCorrectly;
 }
 
+// Критерии надёжного пароля: пароль безопасен только при выполнении ВСЕХ.
+const PASSWORD_RULES = [
+  (v) => v.length >= 8,                  // не менее 8 символов
+  (v) => /\p{Ll}/u.test(v),              // строчная буква
+  (v) => /\p{Lu}/u.test(v),              // заглавная буква
+  (v) => /\d/.test(v),                   // цифра
+  (v) => /[^\p{L}\p{N}\s]/u.test(v),     // спецсимвол (кириллица больше не считается спецсимволом)
+  (v) => !/\s/.test(v),                  // без пробелов
+];
+
 function getPasswordStrength(value) {
   if (value.length === 0) return 0;
 
-  let score = 0;
-  if (value.length >= 8) score++;
-  if (/[0-9]/.test(value)) score++;
-  if (/[^a-zA-Z0-9]/.test(value)) score++;
-  if (/[A-Z]/.test(value) && /[a-z]/.test(value)) score++;
+  const passed = PASSWORD_RULES.filter((rule) => rule(value)).length;
 
-  if (score <= 1) return 1;
-  if (score <= 2) return 2;
-  return 3;
+  if (passed === PASSWORD_RULES.length) return 3; // Сильный — только при всех критериях
+  if (value.length < 8) return 1;                  // короткий пароль всегда «Слабый»
+  if (passed >= PASSWORD_RULES.length - 2) return 2;
+  return 1;
 }
 
 function isPasswordValid(value) {
-  return getPasswordStrength(value) >= 2 && value.length >= 8;
+  return PASSWORD_RULES.every((rule) => rule(value));
 }
 
 function doPasswordsMatch(password, confirm) {
@@ -82,7 +89,7 @@ passwordInput.addEventListener('input', () => {
   if (passwordInput.value.length === 0) {
     passwordError.textContent = '';
   } else if (!isPasswordValid(passwordInput.value)) {
-    passwordError.textContent = 'Пароль слишком слабый: минимум 8 символов, добавьте цифры или спецсимволы';
+    passwordError.textContent = 'Пароль слишком слабый: минимум 8 символов, строчная и заглавная буквы, цифра и спецсимвол, без пробелов';
   } else {
     passwordError.textContent = '';
   }
